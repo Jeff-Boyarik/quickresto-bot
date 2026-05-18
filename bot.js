@@ -1,10 +1,11 @@
 const TelegramBot = require('node-telegram-bot-api');
 const Anthropic = require('@anthropic-ai/sdk');
+const fetch = require('node-fetch');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const QR_LOGIN = process.env.QR_LOGIN || 'ng909';
-const QR_PASSWORD = process.env.QR_PASSWORD || 'mhRrTEzV';
+const QR_PASSWORD = process.env.QR_PASSWORD || '';
 const QR_LAYER = process.env.QR_LAYER || 'ng909';
 const ALLOWED_USER_IDS = process.env.ALLOWED_USER_IDS
   ? process.env.ALLOWED_USER_IDS.split(',').map(id => parseInt(id.trim()))
@@ -22,60 +23,123 @@ const QR_AUTH = Buffer.from(`${QR_LOGIN}:${QR_PASSWORD}`).toString('base64');
 const QR_BASE = `https://${QR_LAYER}.quickresto.ru`;
 const conversations = new Map();
 
+async function qrRequest(path, method = 'GET', body = null) {
+  const options = {
+    method,
+    headers: {
+      'Authorization': 'Basic ' + QR_AUTH,
+      'Content-Type': 'application/json',
+    },
+  };
+  if (body) options.body = JSON.stringify(body);
+  const resp = await fetch(QR_BASE + path, options);
+  const text = await resp.text();
+  try { return JSON.parse(text); } catch(e) { return text; }
+}
+
 function getSystemPrompt() {
   const today = new Date().toISOString().split('T')[0];
-  return `Ты — агент для управления складом кофейни через Quick Resto API. Отвечай кратко, по делу, на русском языке. Используй эмодзи умеренно для удобства чтения в Telegram.
+  return `Ты — агент для управления складом кофейни. У тебя есть функция qrRequest для запросов к Quick Resto API. Отвечай кратко на русском, используй эмодзи умеренно.
 
-АВТОРИЗАЦИЯ: каждый запрос к API — заголовок Authorization: "Basic ${QR_AUTH}"
-BASE URL: ${QR_BASE}
+ВАЖНО: ты работаешь в Node.js среде. Для запросов к API используй ТОЛЬКО встроенную функцию qrRequest(path, method, body) которая уже настроена с авторизацией. НЕ используй fetch напрямую, НЕ объясняй как делать запросы — просто делай их через qrRequest и показывай результат.
 
-ДОСТУПНЫЕ ОПЕРАЦИИ:
+BASE URL уже настроен: ${QR_BASE}
 
-1. Склады: GET /platform/online/api/read?moduleName=warehouse.storehouse
-2. Поставщики: GET /platform/online/api/read?moduleName=contractor.supplier
-3. Ингредиенты: GET /platform/online/api/read?moduleName=warehouse.nomenclature&count=100
-4. Приходные накладные (список): GET /platform/online/api/read?moduleName=warehouse.incomingInvoice&count=20
-   Фильтр по дате: &filter=[{"field":"createDate","filterType":"dateRange","value":"ДАТА-T00:00:00","value2":"ДАТА-T23:59:59"}]
-5. Создать приходную накладную:
-   POST /platform/online/api/create?moduleName=warehouse.incomingInvoice
-   Body: {"contractor":{"id":ID},"storehouse":{"id":ID},"comment":"...","items":[{"nomenclature":{"id":ID},"amount":ЧИСЛО,"unitPrice":ЦЕНА}]}
-6. Провести накладную:
-   POST /platform/online/api/moduleFunction?moduleName=warehouse.incomingInvoice&funcName=conduct
-   Body: {"id": ID}
-7. Перемещения (список): GET /platform/online/api/read?moduleName=warehouse.internalTransfer&count=20
-8. Создать перемещение:
-   POST /platform/online/api/create?moduleName=warehouse.internalTransfer
-   Body: {"storehouseFrom":{"id":ID},"storehouseTo":{"id":ID},"items":[{"nomenclature":{"id":ID},"amount":ЧИСЛО}]}
-9. Провести перемещение:
-   POST /platform/online/api/moduleFunction?moduleName=warehouse.internalTransfer&funcName=conduct
-   Body: {"id": ID}
+ОПЕРАЦИИ:
+
+1. Склады: qrRequest('/platform/online/api/read?moduleName=warehouse.storehouse')
+2. Поставщики: qrRequest('/platform/online/api/read?moduleName=contractor.supplier')  
+3. Ингредиенты: qrRequest('/platform/online/api/read?moduleName=warehouse.nomenclature&count=100')
+4. Приходные накладные: qrRequest('/platform/online/api/read?moduleName=warehouse.incomingInvoice&count=20')
+   С фильтром: '/platform/online/api/read?moduleName=warehouse.incomingInvoice&count=20&filter=[{"field":"createDate","filterType":"dateRange","value":"ДАТА-T00:00:00","value2":"ДАТА-T23:59:59"}]'
+5. Создать приходную накладную: qrRequest('/platform/online/api/create?moduleName=warehouse.incomingInvoice', 'POST', {contractor:{id:ID},storehouse:{id:ID},items:[{nomenclature:{id:ID},amount:N,unitPrice:N}]})
+6. Провести накладную: qrRequest('/platform/online/api/moduleFunction?moduleName=warehouse.incomingInvoice&funcName=conduct', 'POST', {id:ID})
+7. Перемещения: qrRequest('/platform/online/api/read?moduleName=warehouse.internalTransfer&count=20')
+8. Создать перемещение: qrRequest('/platform/online/api/create?moduleName=warehouse.internalTransfer', 'POST', {storehouseFrom:{id:ID},storehouseTo:{id:ID},items:[{nomenclature:{id:ID},amount:N}]})
+9. Провести перемещение: qrRequest('/platform/online/api/moduleFunction?moduleName=warehouse.internalTransfer&funcName=conduct', 'POST', {id:ID})
 
 ПРАВИЛА:
-- Делай реальные HTTP-запросы к API через fetch (Node 18+).
+- Всегда вызывай qrRequest и показывай реальные данные из ответа.
 - Если нужны id — сначала получи их через список.
-- При создании документа сначала уточни все данные у пользователя.
-- Перед проведением (conduct) ВСЕГДА предупреди что операция необратима и жди подтверждения.
-- Показывай данные читаемо, для списков используй нумерацию.
-- Сегодня: ${today}.
-- Если API вернул ошибку — объясни и предложи решение.`;
+- Перед проведением (conduct) предупреди что необратимо и жди подтверждения.
+- Сегодня: ${today}.`;
 }
 
 async function callClaude(userId, userMessage) {
   if (!conversations.has(userId)) conversations.set(userId, []);
   const history = conversations.get(userId);
+
+  const toolResult = await runAgentLoop(userMessage, history);
+  return toolResult;
+}
+
+async function runAgentLoop(userMessage, history) {
   history.push({ role: 'user', content: userMessage });
-  if (history.length > 20) history.splice(0, 2);
+  if (history.length > 30) history.splice(0, 2);
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 1500,
-    system: getSystemPrompt(),
-    messages: history,
-  });
+  const tools = [{
+    name: 'qr_request',
+    description: 'Выполняет HTTP запрос к Quick Resto API',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'URL path начиная с /platform/...' },
+        method: { type: 'string', enum: ['GET', 'POST'], default: 'GET' },
+        body: { type: 'object', description: 'Тело запроса для POST' }
+      },
+      required: ['path']
+    }
+  }];
 
-  const reply = response.content.map(b => b.text || '').join('');
-  history.push({ role: 'assistant', content: reply });
-  return reply;
+  let messages = [...history];
+
+  while (true) {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 2000,
+      system: getSystemPrompt(),
+      tools,
+      messages,
+    });
+
+    if (response.stop_reason === 'end_turn') {
+      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      history.push({ role: 'assistant', content: response.content });
+      return text;
+    }
+
+    if (response.stop_reason === 'tool_use') {
+      history.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'assistant', content: response.content });
+
+      const toolResults = [];
+      for (const block of response.content) {
+        if (block.type === 'tool_use') {
+          console.log(`Вызов API: ${block.input.method || 'GET'} ${block.input.path}`);
+          try {
+            const result = await qrRequest(block.input.path, block.input.method || 'GET', block.input.body || null);
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: block.id,
+              content: JSON.stringify(result)
+            });
+          } catch(e) {
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: block.id,
+              content: 'Ошибка: ' + e.message
+            });
+          }
+        }
+      }
+
+      messages.push({ role: 'user', content: toolResults });
+      history.push({ role: 'user', content: toolResults });
+    } else {
+      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      return text || 'Нет ответа';
+    }
+  }
 }
 
 function isAllowed(userId) {
@@ -87,7 +151,7 @@ bot.onText(/\/start/, (msg) => {
   if (!isAllowed(msg.from.id)) { bot.sendMessage(msg.chat.id, 'Нет доступа.'); return; }
   conversations.delete(msg.from.id);
   bot.sendMessage(msg.chat.id,
-    `☕ *Агент склада — Quick Resto*\n\nПодключён к ${QR_LAYER}.quickresto.ru\n\nЧто умею:\n• Просматривать приходные накладные\n• Создавать и проводить накладные\n• Управлять внутренними перемещениями\n• Показывать склады, поставщиков, ингредиенты\n\nПросто напиши что нужно, например:\n_"покажи накладные за эту неделю"_\n_"создай приходную накладную от Иванов"_`,
+    `☕ *Агент склада — Quick Resto*\n\nПодключён к ${QR_LAYER}.quickresto.ru\n\nЧто умею:\n• Просматривать приходные накладные\n• Создавать и проводить накладные\n• Управлять внутренними перемещениями\n• Показывать склады, поставщиков, ингредиенты\n\nПросто напиши что нужно!`,
     { parse_mode: 'Markdown' }
   );
 });
