@@ -67,7 +67,7 @@ async function callClaude(userId, userMessage) {
   if (history.length > 20) history.splice(0, 2);
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20251022',
+    model: 'claude-sonnet-4-5',
     max_tokens: 1500,
     system: getSystemPrompt(),
     messages: history,
