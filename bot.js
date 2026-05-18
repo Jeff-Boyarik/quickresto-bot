@@ -4,9 +4,9 @@ const https = require('https');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const QR_LOGIN = process.env.QR_LOGIN || 'ng909';
+const QR_LOGIN = process.env.QR_LOGIN || 'salvador';
 const QR_PASSWORD = process.env.QR_PASSWORD || '';
-const QR_LAYER = process.env.QR_LAYER || 'ng909';
+const QR_LAYER = process.env.QR_LAYER || 'salvador';
 const QR_JSESSIONID = process.env.QR_JSESSIONID || '';
 const QR_REMEMBER_ME = process.env.QR_REMEMBER_ME || '';
 const ALLOWED_USER_IDS = process.env.ALLOWED_USER_IDS
