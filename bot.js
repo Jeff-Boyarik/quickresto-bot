@@ -79,7 +79,7 @@ ENDPOINTS:
    body: {}
 
 4. Приходные накладные (список):
-   path: /platform/online/api/list?moduleName=warehouse.documents.incoming&className=ru.edgex.quickresto.modules.warehouse.documents.incoming.IncomingInvoice&count=20
+   path: /platform/online/api/list?moduleName=warehouse.documents.incoming&className=ru.edgex.quickresto.modules.warehouse.documents.incoming.IncomingInvoice&count=20&dateFrom=ДАТА&dateTo=ДАТА
    body: {}
 
 5. Создать приходную накладную:
