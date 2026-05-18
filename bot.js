@@ -7,6 +7,8 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const QR_LOGIN = process.env.QR_LOGIN || 'ng909';
 const QR_PASSWORD = process.env.QR_PASSWORD || '';
 const QR_LAYER = process.env.QR_LAYER || 'ng909';
+const QR_JSESSIONID = process.env.QR_JSESSIONID || '';
+const QR_REMEMBER_ME = process.env.QR_REMEMBER_ME || '';
 const ALLOWED_USER_IDS = process.env.ALLOWED_USER_IDS
   ? process.env.ALLOWED_USER_IDS.split(',').map(id => parseInt(id.trim()))
   : [];
@@ -22,65 +24,26 @@ const QR_AUTH = Buffer.from(`${QR_LOGIN}:${QR_PASSWORD}`).toString('base64');
 const QR_BASE = `https://${QR_LAYER}.quickresto.ru`;
 const conversations = new Map();
 
-// Сначала логинимся и получаем сессию
-let sessionCookie = null;
-
-async function login() {
-  return new Promise((resolve) => {
-    const postData = JSON.stringify({ username: QR_LOGIN, password: QR_PASSWORD });
-    const options = {
-      hostname: `${QR_LAYER}.quickresto.ru`,
-      path: '/platform/online/login',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Content-Length': Buffer.byteLength(postData)
-      }
-    };
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        const cookies = res.headers['set-cookie'];
-        if (cookies) {
-          const jsession = cookies.find(c => c.startsWith('JSESSIONID'));
-          if (jsession) {
-            sessionCookie = jsession.split(';')[0];
-            console.log('Сессия получена:', sessionCookie.slice(0, 30) + '...');
-          }
-        }
-        resolve(sessionCookie);
-      });
-    });
-    req.on('error', (e) => { console.error('Login error:', e.message); resolve(null); });
-    req.setTimeout(15000, () => { req.destroy(); resolve(null); });
-    req.write(postData);
-    req.end();
-  });
-}
+const SESSION_COOKIE = `JSESSIONID=${QR_JSESSIONID}; SPRING_SECURITY_REMEMBER_ME_COOKIE=${QR_REMEMBER_ME}`;
 
 function qrGet(path) {
-  return new Promise(async (resolve) => {
-    if (!sessionCookie) await login();
+  return new Promise((resolve) => {
     const url = new URL(QR_BASE + path);
     const options = {
       hostname: url.hostname,
       path: url.pathname + url.search,
       method: 'GET',
       headers: {
-        'Authorization': 'Basic ' + QR_AUTH,
         'Accept': 'application/json',
-        'Cookie': sessionCookie || ''
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cookie': SESSION_COOKIE,
+        'Referer': `https://${QR_LAYER}.quickresto.ru/`
       }
     };
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        if (res.statusCode === 401) {
-          sessionCookie = null;
-        }
         try {
           resolve({ ok: res.statusCode < 400, status: res.statusCode, data: JSON.parse(data) });
         } catch(e) {
@@ -163,7 +126,7 @@ ENDPOINTS:
 
 5. Приходные накладные за сегодня:
    method: GET
-   path: /platform/data/warehouse.documents.incoming/select?mode=today&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc
+   path: /platform/data/warehouse.documents.incoming/select?mode=today&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc&businessDayOffsetInMs=25200000&timeZone=-480
 
 6. Одна накладная по id:
    method: GET
@@ -171,7 +134,7 @@ ENDPOINTS:
 
 7. Перемещения за последние 30 дней:
    method: GET
-   path: /platform/data/warehouse.documents.exchange/select?mode=previous30Days&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc
+   path: /platform/data/warehouse.documents.exchange/select?mode=previous30Days&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc&businessDayOffsetInMs=25200000&timeZone=-480
 
 8. Перемещения за сегодня:
    method: GET
@@ -314,8 +277,4 @@ bot.on('message', async (msg) => {
 });
 
 bot.on('polling_error', err => console.error('Polling error:', err.message));
-
-// Логинимся при старте
-login().then(() => {
-  console.log(`Бот запущен. Слой: ${QR_LAYER}.quickresto.ru`);
-});
+console.log(`Бот запущен. Слой: ${QR_LAYER}.quickresto.ru`);
