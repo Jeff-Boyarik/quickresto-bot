@@ -25,18 +25,7 @@ const conversations = new Map();
 function qrRequest(path, body) {
   return new Promise((resolve) => {
     const postData = JSON.stringify(body || {});
-    
-    let fullPath = path;
-    if (body && body.moduleName) {
-      const params = new URLSearchParams();
-      params.set('moduleName', body.moduleName);
-      if (body.className) params.set('className', body.className);
-      if (body.count) params.set('count', body.count);
-      if (body.funcName) params.set('funcName', body.funcName);
-      fullPath = path + '?' + params.toString();
-    }
-
-    const url = new URL(QR_BASE + fullPath);
+    const url = new URL(QR_BASE + path);
     const options = {
       hostname: url.hostname,
       path: url.pathname + url.search,
@@ -71,43 +60,53 @@ function getSystemPrompt() {
 BASE URL: ${QR_BASE}
 Сегодня: ${today}
 
-У тебя есть инструмент qr_api для запросов к API. Используй ТОЛЬКО его, никогда не описывай запросы.
+У тебя есть инструмент qr_api. Всегда выполняй реальные запросы через него, никогда не описывай их.
 
-ВАЖНО: Quick Resto принимает ТОЛЬКО POST запросы с телом JSON, даже для чтения данных.
+ВАЖНО: moduleName и className передаются как query-параметры в URL, тело запроса — только данные документа.
 
-ENDPOINTS (все POST, параметры moduleName и className — в URL, данные документа — в body):
+ENDPOINTS:
 
-1. Склады: POST /platform/online/api/list?moduleName=warehouse.storehouse&className=ru.edgex.quickresto.modules.warehouse.storehouse.Storehouse
+1. Склады:
+   path: /platform/online/api/list?moduleName=warehouse.store&className=ru.edgex.quickresto.modules.warehouse.store.Storehouse
    body: {}
 
-2. Поставщики: POST /platform/online/api/list?moduleName=contractor.supplier&className=ru.edgex.quickresto.modules.contractor.Contractor
+2. Поставщики:
+   path: /platform/online/api/list?moduleName=warehouse.providers&className=ru.edgex.quickresto.modules.warehouse.providers.Provider
    body: {}
 
-3. Ингредиенты: POST /platform/online/api/list?moduleName=warehouse.nomenclature&className=ru.edgex.quickresto.modules.warehouse.nomenclature.Nomenclature&count=100
+3. Ингредиенты/номенклатура:
+   path: /platform/online/api/list?moduleName=warehouse.nomenclature&className=ru.edgex.quickresto.modules.warehouse.nomenclature.Nomenclature&count=100
    body: {}
 
-4. Приходные накладные: POST /platform/online/api/list?moduleName=warehouse.incomingInvoice&className=ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice&count=20
+4. Приходные накладные (список):
+   path: /platform/online/api/list?moduleName=warehouse.documents.incoming&className=ru.edgex.quickresto.modules.warehouse.documents.incoming.IncomingInvoice&count=20
    body: {}
 
-5. Создать приходную накладную: POST /platform/online/api/create?moduleName=warehouse.incomingInvoice&className=ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice
-   body: {"contractor":{"id":ID},"storehouse":{"id":ID},"comment":"...","items":[{"nomenclature":{"id":ID},"amount":N,"unitPrice":N}]}
+5. Создать приходную накладную:
+   path: /platform/online/api/create?moduleName=warehouse.documents.incoming&className=ru.edgex.quickresto.modules.warehouse.documents.incoming.IncomingInvoice
+   body: {"contractor":{"id":ID},"store":{"id":ID},"comment":"...","items":[{"nomenclature":{"id":ID},"amount":N,"unitPrice":N}]}
 
-6. Провести накладную: POST /platform/online/api/moduleFunction?moduleName=warehouse.incomingInvoice&funcName=conduct
+6. Провести накладную:
+   path: /platform/online/api/moduleFunction?moduleName=warehouse.documents.incoming&funcName=conduct
    body: {"id":ID}
 
-7. Перемещения: POST /platform/online/api/list?moduleName=warehouse.internalTransfer&className=ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer&count=20
+7. Внутренние перемещения (список):
+   path: /platform/online/api/list?moduleName=warehouse.documents.exchange&className=ru.edgex.quickresto.modules.warehouse.documents.exchange.Exchange&count=20
    body: {}
 
-8. Создать перемещение: POST /platform/online/api/create?moduleName=warehouse.internalTransfer&className=ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer
-   body: {"storehouseFrom":{"id":ID},"storehouseTo":{"id":ID},"items":[{"nomenclature":{"id":ID},"amount":N}]}
+8. Создать перемещение:
+   path: /platform/online/api/create?moduleName=warehouse.documents.exchange&className=ru.edgex.quickresto.modules.warehouse.documents.exchange.Exchange
+   body: {"storeFrom":{"id":ID},"storeTo":{"id":ID},"items":[{"nomenclature":{"id":ID},"amount":N}]}
 
-9. Провести перемещение: POST /platform/online/api/moduleFunction?moduleName=warehouse.internalTransfer&funcName=conduct
+9. Провести перемещение:
+   path: /platform/online/api/moduleFunction?moduleName=warehouse.documents.exchange&funcName=conduct
    body: {"id":ID}
 
 ПРАВИЛА:
-- Всегда выполняй реальные запросы, никогда не описывай их.
+- Всегда выполняй реальные запросы через qr_api.
 - Если нужны id — сначала получи через список.
 - Перед проведением документа предупреди что необратимо и жди подтверждения.
+- Если API вернул ошибку — покажи её и предложи альтернативу.
 - Отвечай кратко на русском. Используй эмодзи умеренно.`;
 }
 
@@ -119,12 +118,12 @@ async function callClaude(userId, userMessage) {
 
   const tools = [{
     name: 'qr_api',
-    description: 'Выполнить POST запрос к Quick Resto API. Все запросы — POST, параметры передаются в body.',
+    description: 'Выполнить запрос к Quick Resto API. moduleName и className — в URL path, данные документа — в body.',
     input_schema: {
       type: 'object',
       properties: {
-       path: { type: 'string', description: 'Полный путь с query параметрами, например /platform/online/api/list?moduleName=warehouse.storehouse&className=ru.edgex.quickresto.modules.warehouse.storehouse.Storehouse' },
-body: { type: 'object', description: 'Тело запроса — только данные документа, НЕ moduleName' }
+        path: { type: 'string', description: 'Полный путь с query параметрами, например /platform/online/api/list?moduleName=warehouse.store&className=...' },
+        body: { type: 'object', description: 'Тело запроса. Для списков — {}. Для создания — данные документа.' }
       },
       required: ['path', 'body']
     }
@@ -148,9 +147,9 @@ body: { type: 'object', description: 'Тело запроса — только �
       const toolResults = [];
       for (const block of assistantContent) {
         if (block.type === 'tool_use') {
-          console.log(`QR API: POST ${block.input.path}`, JSON.stringify(block.input.body));
+          console.log(`QR API: POST ${block.input.path}`);
           const result = await qrRequest(block.input.path, block.input.body);
-          console.log(`QR API response: ${result.status}`, JSON.stringify(result.data).slice(0, 200));
+          console.log(`QR API response: ${result.status}`, JSON.stringify(result.data).slice(0, 300));
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -165,6 +164,7 @@ body: { type: 'object', description: 'Тело запроса — только �
     }
   }
 
+  if (!finalReply) finalReply = 'Не удалось получить ответ. Попробуй ещё раз.';
   history.push({ role: 'assistant', content: finalReply });
   return finalReply;
 }
