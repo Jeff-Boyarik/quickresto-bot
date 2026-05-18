@@ -1,0 +1,13 @@
+{
+  "name": "quickresto-telegram-bot",
+  "version": "1.0.0",
+  "description": "Quick Resto warehouse agent for Telegram",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "@anthropic-ai/sdk": "^0.24.0"
+  }
+}
