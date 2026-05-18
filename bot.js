@@ -120,14 +120,15 @@ ENDPOINTS:
    method: GET
    path: /platform/data/warehouse.nomenclature/select?count=200
 
-4. Приходные накладные за последние 30 дней:
-   method: GET
-   path: /platform/data/warehouse.documents.incoming/select?mode=previous30Days&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc&businessDayOffsetInMs=25200000&timeZone=-480
+4. Приходные накладные:
+   method: POST
+   path: /platform/online/api/list?moduleName=warehouse.documents.incoming&className=ru.edgex.quickresto.modules.warehouse.documents.incoming.IncomingInvoice&count=20
+   body: {}
 
-5. Приходные накладные за сегодня:
-   method: GET
-   path: /platform/data/warehouse.documents.incoming/select?mode=today&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc&businessDayOffsetInMs=25200000&timeZone=-480
-
+5. Перемещения:
+   method: POST  
+   path: /platform/online/api/list?moduleName=warehouse.documents.exchange&className=ru.edgex.quickresto.modules.warehouse.documents.exchange.Exchange&count=20
+   body: {}
 6. Одна накладная по id:
    method: GET
    path: /platform/data/warehouse.documents.incoming/select?objectId=ID
