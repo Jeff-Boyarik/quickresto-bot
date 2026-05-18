@@ -45,6 +45,10 @@ function qrGet(path) {
         }
       });
     });
+    req.setTimeout(25000, () => {
+  req.destroy();
+  resolve({ ok: false, status: 'timeout', data: 'Сервер не ответил за 25 секунд' });
+});
     req.on('error', (e) => resolve({ ok: false, status: 'network_error', data: e.message }));
     req.end();
   });
