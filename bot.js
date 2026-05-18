@@ -23,18 +23,22 @@ const QR_AUTH = Buffer.from(`${QR_LOGIN}:${QR_PASSWORD}`).toString('base64');
 const QR_BASE = `https://${QR_LAYER}.quickresto.ru`;
 const conversations = new Map();
 
-async function qrRequest(path, method = 'GET', body = null) {
-  const options = {
-    method,
-    headers: {
-      'Authorization': 'Basic ' + QR_AUTH,
-      'Content-Type': 'application/json',
-    },
-  };
-  if (body) options.body = JSON.stringify(body);
-  const resp = await fetch(QR_BASE + path, options);
-  const text = await resp.text();
-  try { return JSON.parse(text); } catch(e) { return text; }
+async function qrRequest(path, method = 'POST', body = {}) {
+  try {
+    const url = QR_BASE + path;
+    const resp = await axios.post(url, body || {}, {
+      headers: {
+        'Authorization': 'Basic ' + QR_AUTH,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    return { ok: true, data: resp.data };
+  } catch (e) {
+    const status = e.response ? e.response.status : 'network error';
+    const data = e.response ? e.response.data : e.message;
+    return { ok: false, status, data };
+  }
 }
 
 function getSystemPrompt() {
