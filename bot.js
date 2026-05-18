@@ -34,10 +34,6 @@ function qrGet(path) {
         'Accept': 'application/json'
       }
     };
-    req.setTimeout(25000, () => {
-  req.destroy();
-  resolve({ ok: false, status: 'timeout', data: 'Сервер не ответил за 25 секунд' });
-});
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -49,6 +45,10 @@ function qrGet(path) {
         }
       });
     });
+    req.setTimeout(25000, () => {
+  req.destroy();
+  resolve({ ok: false, status: 'timeout', data: 'Сервер не ответил за 25 секунд' });
+});
     req.setTimeout(25000, () => {
   req.destroy();
   resolve({ ok: false, status: 'timeout', data: 'Сервер не ответил за 25 секунд' });
