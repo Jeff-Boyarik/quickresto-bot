@@ -45,18 +45,15 @@ function getSystemPrompt() {
 
 BASE URL уже настроен: ${QR_BASE}
 
-ОПЕРАЦИИ:
-
-1. Склады: qrRequest('/platform/online/api/read?moduleName=warehouse.storehouse')
-2. Поставщики: qrRequest('/platform/online/api/read?moduleName=contractor.supplier')  
-3. Ингредиенты: qrRequest('/platform/online/api/read?moduleName=warehouse.nomenclature&count=100')
-4. Приходные накладные: qrRequest('/platform/online/api/read?moduleName=warehouse.incomingInvoice&count=20')
-   С фильтром: '/platform/online/api/read?moduleName=warehouse.incomingInvoice&count=20&filter=[{"field":"createDate","filterType":"dateRange","value":"ДАТА-T00:00:00","value2":"ДАТА-T23:59:59"}]'
-5. Создать приходную накладную: qrRequest('/platform/online/api/create?moduleName=warehouse.incomingInvoice', 'POST', {contractor:{id:ID},storehouse:{id:ID},items:[{nomenclature:{id:ID},amount:N,unitPrice:N}]})
-6. Провести накладную: qrRequest('/platform/online/api/moduleFunction?moduleName=warehouse.incomingInvoice&funcName=conduct', 'POST', {id:ID})
-7. Перемещения: qrRequest('/platform/online/api/read?moduleName=warehouse.internalTransfer&count=20')
-8. Создать перемещение: qrRequest('/platform/online/api/create?moduleName=warehouse.internalTransfer', 'POST', {storehouseFrom:{id:ID},storehouseTo:{id:ID},items:[{nomenclature:{id:ID},amount:N}]})
-9. Провести перемещение: qrRequest('/platform/online/api/moduleFunction?moduleName=warehouse.internalTransfer&funcName=conduct', 'POST', {id:ID})
+1. Склады: GET /platform/online/api/list?moduleName=warehouse.storehouse&className=ru.edgex.quickresto.modules.warehouse.storehouse.Storehouse
+2. Поставщики: GET /platform/online/api/list?moduleName=contractor.supplier&className=ru.edgex.quickresto.modules.contractor.Contractor
+3. Ингредиенты: GET /platform/online/api/list?moduleName=warehouse.nomenclature&className=ru.edgex.quickresto.modules.warehouse.nomenclature.Nomenclature&count=100
+4. Приходные накладные: GET /platform/online/api/list?moduleName=warehouse.incomingInvoice&className=ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice&count=20
+5. Создать приходную накладную: POST /platform/online/api/create?moduleName=warehouse.incomingInvoice&className=ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice
+6. Провести накладную: POST /platform/online/api/moduleFunction?moduleName=warehouse.incomingInvoice&funcName=conduct
+7. Перемещения: GET /platform/online/api/list?moduleName=warehouse.internalTransfer&className=ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer&count=20
+8. Создать перемещение: POST /platform/online/api/create?moduleName=warehouse.internalTransfer&className=ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer
+9. Провести перемещение: POST /platform/online/api/moduleFunction?moduleName=warehouse.internalTransfer&funcName=conduct
 
 ПРАВИЛА:
 - Всегда вызывай qrRequest и показывай реальные данные из ответа.
