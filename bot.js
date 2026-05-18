@@ -75,33 +75,34 @@ BASE URL: ${QR_BASE}
 
 ВАЖНО: Quick Resto принимает ТОЛЬКО POST запросы с телом JSON, даже для чтения данных.
 
-ENDPOINTS (все POST):
-1. Склады: /platform/online/api/list
-   body: {"moduleName":"warehouse.storehouse","className":"ru.edgex.quickresto.modules.warehouse.storehouse.Storehouse"}
+ENDPOINTS (все POST, параметры moduleName и className — в URL, данные документа — в body):
 
-2. Поставщики: /platform/online/api/list
-   body: {"moduleName":"contractor.supplier","className":"ru.edgex.quickresto.modules.contractor.Contractor"}
+1. Склады: POST /platform/online/api/list?moduleName=warehouse.storehouse&className=ru.edgex.quickresto.modules.warehouse.storehouse.Storehouse
+   body: {}
 
-3. Ингредиенты: /platform/online/api/list
-   body: {"moduleName":"warehouse.nomenclature","className":"ru.edgex.quickresto.modules.warehouse.nomenclature.Nomenclature","count":100}
+2. Поставщики: POST /platform/online/api/list?moduleName=contractor.supplier&className=ru.edgex.quickresto.modules.contractor.Contractor
+   body: {}
 
-4. Приходные накладные: /platform/online/api/list
-   body: {"moduleName":"warehouse.incomingInvoice","className":"ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice","count":20}
+3. Ингредиенты: POST /platform/online/api/list?moduleName=warehouse.nomenclature&className=ru.edgex.quickresto.modules.warehouse.nomenclature.Nomenclature&count=100
+   body: {}
 
-5. Создать приходную накладную: /platform/online/api/create
-   body: {"moduleName":"warehouse.incomingInvoice","className":"ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice","contractor":{"id":ID},"storehouse":{"id":ID},"comment":"...","items":[{"nomenclature":{"id":ID},"amount":N,"unitPrice":N}]}
+4. Приходные накладные: POST /platform/online/api/list?moduleName=warehouse.incomingInvoice&className=ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice&count=20
+   body: {}
 
-6. Провести накладную: /platform/online/api/moduleFunction
-   body: {"moduleName":"warehouse.incomingInvoice","funcName":"conduct","id":ID}
+5. Создать приходную накладную: POST /platform/online/api/create?moduleName=warehouse.incomingInvoice&className=ru.edgex.quickresto.modules.warehouse.incomingInvoice.IncomingInvoice
+   body: {"contractor":{"id":ID},"storehouse":{"id":ID},"comment":"...","items":[{"nomenclature":{"id":ID},"amount":N,"unitPrice":N}]}
 
-7. Перемещения: /platform/online/api/list
-   body: {"moduleName":"warehouse.internalTransfer","className":"ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer","count":20}
+6. Провести накладную: POST /platform/online/api/moduleFunction?moduleName=warehouse.incomingInvoice&funcName=conduct
+   body: {"id":ID}
 
-8. Создать перемещение: /platform/online/api/create
-   body: {"moduleName":"warehouse.internalTransfer","className":"ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer","storehouseFrom":{"id":ID},"storehouseTo":{"id":ID},"items":[{"nomenclature":{"id":ID},"amount":N}]}
+7. Перемещения: POST /platform/online/api/list?moduleName=warehouse.internalTransfer&className=ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer&count=20
+   body: {}
 
-9. Провести перемещение: /platform/online/api/moduleFunction
-   body: {"moduleName":"warehouse.internalTransfer","funcName":"conduct","id":ID}
+8. Создать перемещение: POST /platform/online/api/create?moduleName=warehouse.internalTransfer&className=ru.edgex.quickresto.modules.warehouse.internalTransfer.InternalTransfer
+   body: {"storehouseFrom":{"id":ID},"storehouseTo":{"id":ID},"items":[{"nomenclature":{"id":ID},"amount":N}]}
+
+9. Провести перемещение: POST /platform/online/api/moduleFunction?moduleName=warehouse.internalTransfer&funcName=conduct
+   body: {"id":ID}
 
 ПРАВИЛА:
 - Всегда выполняй реальные запросы, никогда не описывай их.
@@ -122,8 +123,8 @@ async function callClaude(userId, userMessage) {
     input_schema: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'Путь, например /platform/online/api/list' },
-        body: { type: 'object', description: 'Тело запроса JSON' }
+       path: { type: 'string', description: 'Полный путь с query параметрами, например /platform/online/api/list?moduleName=warehouse.storehouse&className=ru.edgex.quickresto.modules.warehouse.storehouse.Storehouse' },
+body: { type: 'object', description: 'Тело запроса — только данные документа, НЕ moduleName' }
       },
       required: ['path', 'body']
     }
