@@ -25,7 +25,18 @@ const conversations = new Map();
 function qrRequest(path, body) {
   return new Promise((resolve) => {
     const postData = JSON.stringify(body || {});
-    const url = new URL(QR_BASE + path);
+    
+    let fullPath = path;
+    if (body && body.moduleName) {
+      const params = new URLSearchParams();
+      params.set('moduleName', body.moduleName);
+      if (body.className) params.set('className', body.className);
+      if (body.count) params.set('count', body.count);
+      if (body.funcName) params.set('funcName', body.funcName);
+      fullPath = path + '?' + params.toString();
+    }
+
+    const url = new URL(QR_BASE + fullPath);
     const options = {
       hostname: url.hostname,
       path: url.pathname + url.search,
