@@ -1,14 +1,15 @@
 const TelegramBot = require('node-telegram-bot-api');
 const Anthropic = require('@anthropic-ai/sdk');
 const https = require('https');
+const querystring = require('querystring');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const QR_LOGIN = process.env.QR_LOGIN || 'salvador';
+const QR_LOGIN = process.env.QR_LOGIN || 'ng909';
 const QR_PASSWORD = process.env.QR_PASSWORD || '';
+const QR_WEB_LOGIN = process.env.QR_WEB_LOGIN || '';
+const QR_WEB_PASSWORD = process.env.QR_WEB_PASSWORD || '';
 const QR_LAYER = process.env.QR_LAYER || 'salvador';
-const QR_JSESSIONID = process.env.QR_JSESSIONID || '';
-const QR_REMEMBER_ME = process.env.QR_REMEMBER_ME || '';
 const ALLOWED_USER_IDS = process.env.ALLOWED_USER_IDS
   ? process.env.ALLOWED_USER_IDS.split(',').map(id => parseInt(id.trim()))
   : [];
@@ -24,19 +25,24 @@ const QR_AUTH = Buffer.from(`${QR_LOGIN}:${QR_PASSWORD}`).toString('base64');
 const QR_BASE = `https://${QR_LAYER}.quickresto.ru`;
 const conversations = new Map();
 
-const SESSION_COOKIE = `JSESSIONID=${QR_JSESSIONID}; SPRING_SECURITY_REMEMBER_ME_COOKIE=${QR_REMEMBER_ME}`;
+let sessionCookies = '';
+let sessionExpiry = 0;
 
-function qrGet(path) {
+async function doLogin() {
   return new Promise((resolve) => {
-    const url = new URL(QR_BASE + path);
+    const postData = querystring.stringify({
+      j_username: QR_WEB_LOGIN,
+      j_password: QR_WEB_PASSWORD,
+      j_rememberme: 'true'
+    });
     const options = {
-      hostname: url.hostname,
-      path: url.pathname + url.search,
-      method: 'GET',
+      hostname: `${QR_LAYER}.quickresto.ru`,
+      path: '/platform/online/j_spring_security_check',
+      method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cookie': SESSION_COOKIE,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData),
+        'Accept': 'application/json, text/plain, */*',
         'Referer': `https://${QR_LAYER}.quickresto.ru/`
       }
     };
@@ -44,10 +50,61 @@ function qrGet(path) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        try {
-          resolve({ ok: res.statusCode < 400, status: res.statusCode, data: JSON.parse(data) });
-        } catch(e) {
-          resolve({ ok: res.statusCode < 400, status: res.statusCode, data: data.slice(0, 500) });
+        const cookies = res.headers['set-cookie'];
+        if (cookies && cookies.length > 0) {
+          sessionCookies = cookies.map(c => c.split(';')[0]).join('; ');
+          sessionExpiry = Date.now() + 3600000; // 1 час
+          console.log('Сессия получена успешно');
+          resolve(true);
+        } else {
+          console.error('Логин не удался — куки не получены. Ответ:', res.statusCode, data.slice(0, 200));
+          resolve(false);
+        }
+      });
+    });
+    req.on('error', (e) => { console.error('Login error:', e.message); resolve(false); });
+    req.setTimeout(15000, () => { req.destroy(); resolve(false); });
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function ensureSession() {
+  if (!sessionCookies || Date.now() > sessionExpiry) {
+    await doLogin();
+  }
+}
+
+function qrGet(path) {
+  return new Promise(async (resolve) => {
+    await ensureSession();
+    const url = new URL(QR_BASE + path);
+    const options = {
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cookie': sessionCookies,
+        'Referer': `https://${QR_LAYER}.quickresto.ru/`
+      }
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', async () => {
+        if (res.statusCode === 401) {
+          console.log('Сессия истекла, перелогиниваемся...');
+          sessionCookies = '';
+          await doLogin();
+          resolve({ ok: false, status: 401, data: 'Сессия истекла, попробуй снова' });
+        } else {
+          try {
+            resolve({ ok: res.statusCode < 400, status: res.statusCode, data: JSON.parse(data) });
+          } catch(e) {
+            resolve({ ok: res.statusCode < 400, status: res.statusCode, data: data.slice(0, 500) });
+          }
         }
       });
     });
@@ -120,15 +177,14 @@ ENDPOINTS:
    method: GET
    path: /platform/data/warehouse.nomenclature/select?count=200
 
-4. Приходные накладные:
-   method: POST
-   path: /platform/online/api/list?moduleName=warehouse.documents.incoming&className=ru.edgex.quickresto.modules.warehouse.documents.incoming.IncomingInvoice&count=20
-   body: {}
+4. Приходные накладные за последние 30 дней:
+   method: GET
+   path: /platform/data/warehouse.documents.incoming/select?mode=previous30Days&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc&businessDayOffsetInMs=25200000&timeZone=-480
 
-5. Перемещения:
-   method: POST  
-   path: /platform/online/api/list?moduleName=warehouse.documents.exchange&className=ru.edgex.quickresto.modules.warehouse.documents.exchange.Exchange&count=20
-   body: {}
+5. Приходные накладные за сегодня:
+   method: GET
+   path: /platform/data/warehouse.documents.incoming/select?mode=today&start=0&count=50&sortField%5BD%5D=invoiceDate&sortOrder%5BD%5D=desc&businessDayOffsetInMs=25200000&timeZone=-480
+
 6. Одна накладная по id:
    method: GET
    path: /platform/data/warehouse.documents.incoming/select?objectId=ID
@@ -278,4 +334,11 @@ bot.on('message', async (msg) => {
 });
 
 bot.on('polling_error', err => console.error('Polling error:', err.message));
-console.log(`Бот запущен. Слой: ${QR_LAYER}.quickresto.ru`);
+
+doLogin().then((ok) => {
+  if (ok) {
+    console.log(`Бот запущен. Слой: ${QR_LAYER}.quickresto.ru`);
+  } else {
+    console.log(`Бот запущен без сессии. Слой: ${QR_LAYER}.quickresto.ru`);
+  }
+});
